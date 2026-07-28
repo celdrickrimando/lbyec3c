@@ -32,20 +32,31 @@ fprintf('Training predictors before selection: %d columns\n', width(train_tbl));
 % one-hot encoded or considered. Leave the cell array empty ({}) to skip
 % this step and let fscmrmr decide everything on its own.
 %
-% Test 1.1 exclusion set:
+% Test 2: CV-search validated exclusion set (15 columns), found via a
+% local greedy backward-elimination search using 5-fold CV accuracy as a
+% proxy for leaderboard score (see feature_search_log.md for full history)
+%  2  application_mode
 %  3  application_order
-%  8  nationality
+%  4  course
+%  5  daytime_evening_attendance
+%  6  previous_qualification
+%  7  previous_qualification_(grade)
 %  9  mothers_qualification
 %  10 fathers_qualification
+%  11 mothers_occupation
+%  12 fathers_occupation
+%  15 educational_special_needs
 %  20 age_at_enrollment
 %  21 international
-%  34 unemployment_rate
-%  35 inflation_rate
-%  36 gdp
-% (parents' occupations, 11/12, kept in on purpose)
-manualExclude = {'application_order', 'nationality', 'mothers_qualification', ...
-                  'fathers_qualification', 'age_at_enrollment', 'international', ...
-                  'unemployment_rate', 'inflation_rate', 'gdp'};
+%  27 curricular_units_1st_sem_(without_evaluations)
+%  30 curricular_units_2nd_sem_(evaluations)
+manualExclude = {'application_mode', 'application_order', 'course', ...
+                  'daytime_evening_attendance', 'previous_qualification', ...
+                  'previous_qualification__grade_', 'mothers_qualification', ...
+                  'fathers_qualification', 'mothers_occupation', 'fathers_occupation', ...
+                  'educational_special_needs', 'age_at_enrollment', 'international', ...
+                  'curricular_units_1st_sem__without_evaluations_', ...
+                  'curricular_units_2nd_sem__evaluations_'};
 
 dropCols = intersect(manualExclude, train_tbl.Properties.VariableNames);
 if ~isempty(dropCols)
