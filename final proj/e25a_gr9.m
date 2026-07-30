@@ -14,64 +14,47 @@ y_train = categorical(train_tbl.status);
 train_tbl.status = [];
 
 %% ================= Feature Engineering =================
-% Same engineered features as the k-NN version. Random Forest tends to
-% be far more robust to noisy/irrelevant raw columns than k-NN (it can
-% simply ignore them via splits), so unlike the k-NN script we do NOT
-% need a manual exclusion list here -- all 36 raw columns are kept.
 train_tbl = addEngineeredFeatures(train_tbl);
 test_tbl  = addEngineeredFeatures(test_tbl);
 
-fprintf('Training predictors: %d columns (no manual exclusion needed for RF)\n', width(train_tbl));
-
-%% ================= Encode Categorical Columns =================
-% Text columns are one-hot encoded manually; numeric columns kept as-is.
-% Train and test combined first so both share identical dummy columns.
+%% ================= Convert Text Columns to Native Categorical =================
+% Key difference from exp8/exp9: text columns are converted to MATLAB's
+% 'categorical' type directly, NOT one-hot encoded. fitcensemble/templateTree
+% detect categorical-typed table columns automatically and split on them
+% natively (grouping categories flexibly on either side of a split),
+% instead of being forced through ~250 sparse binary dummy columns. This
+% avoids diluting the tree's attention across many near-empty one-hot
+% columns and lets each split use the full information in a categorical
+% column at once.
 
 varNames = train_tbl.Properties.VariableNames;
-n_train  = height(train_tbl);
 combined_tbl = [train_tbl; test_tbl];
-
-X_parts = {};
-featureNames = {};
+n_train = height(train_tbl);
 
 for i = 1:numel(varNames)
-    col = combined_tbl.(varNames{i});
-    if isnumeric(col)
-        X_parts{end+1} = col;
-        featureNames{end+1} = varNames{i};
-    else
-        catCol = categorical(col);
-        cats = categories(catCol);
-        dummies = zeros(numel(catCol), numel(cats));
-        for c = 1:numel(cats)
-            dummies(:, c) = double(catCol == cats{c});
-        end
-        dummies(:, end) = [];
-        cats(end) = [];
-        X_parts{end+1} = dummies;
-        for c = 1:numel(cats)
-            featureNames{end+1} = sprintf('%s_%s', varNames{i}, cats{c});
-        end
+    if ~isnumeric(combined_tbl.(varNames{i}))
+        combined_tbl.(varNames{i}) = categorical(combined_tbl.(varNames{i}));
     end
 end
 
-X_all = cell2mat(X_parts);
-X_train_full = X_all(1:n_train, :);
-X_test_full  = X_all(n_train+1:end, :);
+train_tbl_native = combined_tbl(1:n_train, :);
+test_tbl_native  = combined_tbl(n_train+1:end, :);
 
-fprintf('Expanded feature matrix: %d columns (after one-hot encoding)\n', size(X_all,2));
+fprintf('Training predictors: %d columns (categorical columns kept native, not one-hot)\n', width(train_tbl_native));
 
-%% ================= Train Random Forest (Bagged Trees) =================
-% Random Forest via fitcensemble with the 'Bag' method. Numeric-code
-% comparison in local Python testing (300 trees, MaxNumSplits ~ deep,
-% MinLeafSize = 2) landed around 0.775 cross-validated accuracy on the
-% full column set, vs. ~0.76 for the tuned k-NN version on a hand-pruned
-% column subset -- so RF is used here on ALL columns, no exclusion list.
+%% ================= Train Random Forest (Native Categorical Splits) =================
+% 'PredictorSelection','interaction-curvature' corrects a known bias where
+% predictors with many possible categories/split points get favored purely
+% because they offer more ways to split, not because they're more
+% predictive -- this matters here since some categorical columns (course,
+% occupations) have far more levels than others (gender, debtor).
 
 nTrees = 300;
-treeTemplate = templateTree('MinLeafSize', 2, 'MaxNumSplits', 200);
+treeTemplate = templateTree('MinLeafSize', 2, 'MaxNumSplits', 200, ...
+    'PredictorSelection', 'interaction-curvature', ...
+    'Surrogate', 'on');
 
-rfMdl = fitcensemble(X_train_full, y_train, ...
+rfMdl = fitcensemble(train_tbl_native, y_train, ...
     'Method', 'Bag', ...
     'NumLearningCycles', nTrees, ...
     'Learners', treeTemplate);
@@ -82,7 +65,7 @@ predTrain = kfoldPredict(cvMdl);
 
 figure;
 confusionchart(y_train, predTrain);
-title('Confusion Matrix - Random Forest (Cross-Validated)');
+title('Confusion Matrix - Random Forest, Native Categorical Splits (Cross-Validated)');
 xlabel('Predicted Class');
 ylabel('True Class');
 
@@ -103,19 +86,8 @@ for i = 1:numel(classes)
 end
 fprintf('Cross-validated accuracy: %.4f\n', 1 - kfoldLoss(cvMdl));
 
-%% ================= Feature Importance (informational) =================
-imp = predictorImportance(rfMdl);
-[~, impOrder] = sort(imp, 'descend');
-figure;
-bar(imp(impOrder(1:min(20, numel(imp)))));
-xticks(1:min(20, numel(imp)));
-xticklabels(featureNames(impOrder(1:min(20, numel(imp)))));
-xtickangle(90);
-title('Top 20 Feature Importances (Random Forest)');
-ylabel('Importance');
-
 %% ================= Predict on Test Set & Write Submission =================
-predTest = predict(rfMdl, X_test_full);
+predTest = predict(rfMdl, test_tbl_native);
 
 submission = table(test_ids, cellstr(predTest), 'VariableNames', {'stud_id', 'status'});
 writetable(submission, 'submission.csv');
