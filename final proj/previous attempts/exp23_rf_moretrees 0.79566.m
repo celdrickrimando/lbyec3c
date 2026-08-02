@@ -1,7 +1,7 @@
 close all; clear; clc
 
 %% ================= Import Data =================
-rng(42); % exp26: isolated test - different random seed from exp19's rng(0), single change
+rng(0);
 train_tbl = readtable('train.csv');
 test_tbl  = readtable('test.csv');
 
@@ -66,7 +66,7 @@ fprintf('Native-categorical table: %d columns. One-hot/standardized matrix: %d c
 treeTemplate = templateTree('MinLeafSize', 2, 'MaxNumSplits', 200, ...
     'PredictorSelection', 'interaction-curvature', ...
     'Surrogate', 'on');
-nTrees = 300;
+nTrees = 500; % exp23: isolated test - more trees in the RF, single change from exp19
 
 % exp15: single isolated change from exp11 - swap the RBF kernel for a
 % LINEAR kernel. A different kernel gives SVM a genuinely different

@@ -1,7 +1,7 @@
 close all; clear; clc
 
 %% ================= Import Data =================
-rng(42); % exp26: isolated test - different random seed from exp19's rng(0), single change
+rng(0);
 train_tbl = readtable('train.csv');
 test_tbl  = readtable('test.csv');
 
@@ -100,7 +100,7 @@ for k = 1:cv.NumTestSets
     oofRF(teIdx, :) = alignScoreColumns(scoreRF, rfFold.ClassNames, classNames);
 
     % --- LDA on one-hot fold ---
-    ldaFold = fitcdiscr(X_flat_train(trIdx, :), y_train(trIdx), 'DiscrimType', 'pseudoLinear');
+    ldaFold = fitcdiscr(X_flat_train(trIdx, :), y_train(trIdx), 'DiscrimType', 'diagLinear');
     [~, scoreLDA] = predict(ldaFold, X_flat_train(teIdx, :));
     oofLDA(teIdx, :) = alignScoreColumns(scoreLDA, ldaFold.ClassNames, classNames);
 
@@ -164,7 +164,7 @@ end
 %% ================= Train final models on FULL training data =================
 rfFinal = fitcensemble(train_tbl_native, y_train, ...
     'Method', 'Bag', 'NumLearningCycles', nTrees, 'Learners', treeTemplate);
-ldaFinal = fitcdiscr(X_flat_train, y_train, 'DiscrimType', 'pseudoLinear');
+ldaFinal = fitcdiscr(X_flat_train, y_train, 'DiscrimType', 'diagLinear');
 svmFinal = fitcecoc(X_flat_train, y_train, ...
     'Learners', svmTemplate, 'Coding', 'onevsone', 'FitPosterior', true);
 
