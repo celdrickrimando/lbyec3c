@@ -66,7 +66,7 @@ fprintf('Native-categorical table: %d columns. One-hot/standardized matrix: %d c
 treeTemplate = templateTree('MinLeafSize', 2, 'MaxNumSplits', 200, ...
     'PredictorSelection', 'interaction-curvature', ...
     'Surrogate', 'on');
-nTrees = 500; % exp23: isolated test - more trees in the RF, single change from exp19
+nTrees = 300;
 
 % exp15: single isolated change from exp11 - swap the RBF kernel for a
 % LINEAR kernel. A different kernel gives SVM a genuinely different

@@ -66,16 +66,14 @@ fprintf('Native-categorical table: %d columns. One-hot/standardized matrix: %d c
 treeTemplate = templateTree('MinLeafSize', 2, 'MaxNumSplits', 200, ...
     'PredictorSelection', 'interaction-curvature', ...
     'Surrogate', 'on');
-nTrees = 500; % exp23: isolated test - more trees in the RF, single change from exp19
+nTrees = 300;
 
 % exp15: single isolated change from exp11 - swap the RBF kernel for a
 % LINEAR kernel. A different kernel gives SVM a genuinely different
 % decision boundary (not just a reweighting), which is the kind of real
 % mechanism change that's worth a direct Kaggle test rather than more
 % local-CV tuning.
-% exp19: isolated test - stronger regularization (smaller BoxConstraint)
-% on the linear SVM, single change from exp15
-svmTemplate = templateSVM('KernelFunction', 'linear', 'BoxConstraint', 0.3, 'Standardize', false);
+svmTemplate = templateSVM('KernelFunction', 'linear', 'Standardize', false);
 
 %% ================= 5-fold OOF predictions to tune blend weights =================
 % RF, LDA and ECOC-SVM each capture a different kind of decision boundary

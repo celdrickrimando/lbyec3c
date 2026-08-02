@@ -66,16 +66,9 @@ fprintf('Native-categorical table: %d columns. One-hot/standardized matrix: %d c
 treeTemplate = templateTree('MinLeafSize', 2, 'MaxNumSplits', 200, ...
     'PredictorSelection', 'interaction-curvature', ...
     'Surrogate', 'on');
-nTrees = 500; % exp23: isolated test - more trees in the RF, single change from exp19
+nTrees = 300;
 
-% exp15: single isolated change from exp11 - swap the RBF kernel for a
-% LINEAR kernel. A different kernel gives SVM a genuinely different
-% decision boundary (not just a reweighting), which is the kind of real
-% mechanism change that's worth a direct Kaggle test rather than more
-% local-CV tuning.
-% exp19: isolated test - stronger regularization (smaller BoxConstraint)
-% on the linear SVM, single change from exp15
-svmTemplate = templateSVM('KernelFunction', 'linear', 'BoxConstraint', 0.3, 'Standardize', false);
+svmTemplate = templateSVM('KernelFunction', 'rbf', 'Standardize', false);
 
 %% ================= 5-fold OOF predictions to tune blend weights =================
 % RF, LDA and ECOC-SVM each capture a different kind of decision boundary
@@ -114,9 +107,13 @@ for k = 1:cv.NumTestSets
 end
 
 %% ================= Grid search blend weights on OOF predictions =================
+% exp14: finer weight grid than exp11 (step 0.05 instead of 0.1), so this
+% is a single, isolated, low-risk change from your best real script -
+% exp11's grid may have stepped over a better weight combination near its
+% [0.7 0.3 0.0]-ish optimum without ever landing on it exactly.
 bestAcc = 0;
 bestW = [1 0 0];
-step = 0.1;
+step = 0.05;
 for w1 = 0:step:1
     for w2 = 0:step:(1 - w1)
         w3 = 1 - w1 - w2;
