@@ -1,23 +1,7 @@
 close all; clear; clc
 
 %% ================= Import Data =================
-% exp_grade_admission_feat: single isolated change from exp_4way_finegrid
-% (Kaggle 0.80108, new best - RF/LDA/SVM/RUS all contributing at
-% [0.20 0.25 0.30 0.25], confirming RUSBoost as a real 4th blend member
-% and RF's earlier zero-weight as grid noise, not a real finding).
-% This round leaves the model set and blend grid untouched and instead
-% adds ONE new engineered feature: grade_admission_diff = avg_grade -
-% admission_grade (did the student's college performance improve or
-% decline relative to how they came in). Python-proxy testing (RF+LDA+
-% SVM+RUS blend, not just RF alone this time) checked 6 candidate
-% features individually against the current 4-model blend: eval_rate,
-% pass_rate, no_activity_2nd, dropout_signal, and grade_admission_diff,
-% plus all-combined. Only grade_admission_diff improved the blend
-% (0.7845 -> 0.7851 OOF); the rest were flat-to-worse, and combining all
-% of them at once was clearly worse (0.7815) from multicollinearity with
-% the existing engineered features. Adding just this one, isolated, to
-% keep the experiment attributable to a single mechanism.
-rng(42); % best found so far per exp19/exp26 seed sweep
+rng(2024); % seed sweep - single change from exp19/exp26, best found so far is seed 42 (0.79656)
 train_tbl = readtable('train.csv');
 test_tbl  = readtable('test.csv');
 
@@ -93,25 +77,17 @@ nTrees = 300;
 % on the linear SVM, single change from exp15
 svmTemplate = templateSVM('KernelFunction', 'linear', 'BoxConstraint', 0.3, 'Standardize', false);
 
-% Shallower tree learner for RUSBoost below - boosting wants weak learners
-% (deep trees would let each stage overfit its reweighted sample), unlike
-% RF's deep-ish trees which need to be strong individually since they're
-% only bagged, not boosted.
-boostTreeTemplate = templateTree('MaxNumSplits', 20, ...
-    'PredictorSelection', 'interaction-curvature', 'Surrogate', 'on');
-nBoostCycles = 200;
-
 %% ================= 5-fold OOF predictions to tune blend weights =================
-% RF, LDA, ECOC-SVM, and RUSBoost each capture a different
-% kind of decision boundary, so a weighted blend of their class-posterior
-% probabilities can pick up cases where one model is systematically wrong
-% but another isn't. Weights are tuned here on out-of-fold predictions so
-% the blend isn't just overfit to the training set it was built on.
+% RF, LDA and ECOC-SVM each capture a different kind of decision boundary
+% (tree splits / linear discriminant / kernel margin), so a weighted blend
+% of their class-posterior probabilities can pick up cases where one model
+% is systematically wrong but another isn't. Weights are tuned here on
+% out-of-fold predictions so the blend isn't just overfit to the training
+% set it was built on.
 cv = cvpartition(y_train, 'KFold', 5);
 oofRF  = zeros(n_train, nClasses);
 oofLDA = zeros(n_train, nClasses);
 oofSVM = zeros(n_train, nClasses);
-oofRUS = zeros(n_train, nClasses);
 
 for k = 1:cv.NumTestSets
     trIdx = training(cv, k);
@@ -134,52 +110,39 @@ for k = 1:cv.NumTestSets
     [~, ~, ~, postSVM] = predict(svmFold, X_flat_train(teIdx, :));
     oofSVM(teIdx, :) = alignScoreColumns(postSVM, svmFold.ClassNames, classNames);
 
-    % --- RUSBoost on native-categorical fold ---
-    % Random-undersamples the majority classes at each boosting round,
-    % so it's natively built for the class imbalance (Enrolled is the
-    % minority class). Individually weaker than RF/LDA/SVM, but that's
-    % fine - it's here for the cases it gets right that they don't.
-    rusFold = fitcensemble(train_tbl_native(trIdx, :), y_train(trIdx), ...
-        'Method', 'RUSBoost', 'NumLearningCycles', nBoostCycles, 'Learners', boostTreeTemplate);
-    [~, scoreRUS] = predict(rusFold, train_tbl_native(teIdx, :));
-    oofRUS(teIdx, :) = alignScoreColumns(scoreRUS, rusFold.ClassNames, classNames);
-
     fprintf('Fold %d done.\n', k);
 end
 
 %% ================= Grid search blend weights on OOF predictions =================
 bestAcc = 0;
-bestW = [1 0 0 0];
-step = 0.05;
+bestW = [1 0 0];
+step = 0.1;
 for w1 = 0:step:1
     for w2 = 0:step:(1 - w1)
-        for w3 = 0:step:(1 - w1 - w2)
-            w4 = 1 - w1 - w2 - w3;
-            blend = w1 * oofRF + w2 * oofLDA + w3 * oofSVM + w4 * oofRUS;
-            [~, predIdx] = max(blend, [], 2);
-            predLabels = categorical(classNames(predIdx));
-            acc = mean(predLabels == y_train);
-            if acc > bestAcc
-                bestAcc = acc;
-                bestW = [w1 w2 w3 w4];
-            end
+        w3 = 1 - w1 - w2;
+        blend = w1 * oofRF + w2 * oofLDA + w3 * oofSVM;
+        [~, predIdx] = max(blend, [], 2);
+        predLabels = categorical(classNames(predIdx));
+        acc = mean(predLabels == y_train);
+        if acc > bestAcc
+            bestAcc = acc;
+            bestW = [w1 w2 w3];
         end
     end
 end
-fprintf('\nBest OOF blend weights [RF LDA SVM RUS] = [%.2f %.2f %.2f %.2f], OOF accuracy = %.4f\n', ...
-    bestW(1), bestW(2), bestW(3), bestW(4), bestAcc);
+fprintf('\nBest OOF blend weights [RF LDA SVM] = [%.2f %.2f %.2f], OOF accuracy = %.4f\n', ...
+    bestW(1), bestW(2), bestW(3), bestAcc);
 fprintf('(Reference) RF alone OOF accuracy:  %.4f\n', mean(categorical(classNames(argmaxCols(oofRF)))  == y_train));
 fprintf('(Reference) LDA alone OOF accuracy: %.4f\n', mean(categorical(classNames(argmaxCols(oofLDA))) == y_train));
 fprintf('(Reference) SVM alone OOF accuracy: %.4f\n', mean(categorical(classNames(argmaxCols(oofSVM))) == y_train));
-fprintf('(Reference) RUSBoost alone OOF accuracy: %.4f\n', mean(categorical(classNames(argmaxCols(oofRUS))) == y_train));
 
-blendOOF = bestW(1) * oofRF + bestW(2) * oofLDA + bestW(3) * oofSVM + bestW(4) * oofRUS;
+blendOOF = bestW(1) * oofRF + bestW(2) * oofLDA + bestW(3) * oofSVM;
 [~, blendIdx] = max(blendOOF, [], 2);
 predTrainBlend = categorical(classNames(blendIdx));
 
 figure;
 confusionchart(y_train, predTrainBlend);
-title('Confusion Matrix - RF+LDA+SVM+RUS Blend (Out-of-Fold)');
+title('Confusion Matrix - RF+LDA+SVM Blend (Out-of-Fold)');
 xlabel('Predicted Class');
 ylabel('True Class');
 
@@ -204,21 +167,16 @@ rfFinal = fitcensemble(train_tbl_native, y_train, ...
 ldaFinal = fitcdiscr(X_flat_train, y_train, 'DiscrimType', 'pseudoLinear');
 svmFinal = fitcecoc(X_flat_train, y_train, ...
     'Learners', svmTemplate, 'Coding', 'onevsone', 'FitPosterior', true);
-rusFinal = fitcensemble(train_tbl_native, y_train, ...
-    'Method', 'RUSBoost', 'NumLearningCycles', nBoostCycles, 'Learners', boostTreeTemplate);
 
 [~, scoreRFTest]  = predict(rfFinal, test_tbl_native);
 [~, scoreLDATest] = predict(ldaFinal, X_flat_test);
 [~, ~, ~, postSVMTest] = predict(svmFinal, X_flat_test);
-[~, scoreRUSTest] = predict(rusFinal, test_tbl_native);
 
 scoreRFTest  = alignScoreColumns(scoreRFTest,  rfFinal.ClassNames,  classNames);
 scoreLDATest = alignScoreColumns(scoreLDATest, ldaFinal.ClassNames, classNames);
 postSVMTest  = alignScoreColumns(postSVMTest,  svmFinal.ClassNames, classNames);
-scoreRUSTest = alignScoreColumns(scoreRUSTest, rusFinal.ClassNames, classNames);
 
-blendTest = bestW(1) * scoreRFTest + bestW(2) * scoreLDATest + bestW(3) * postSVMTest ...
-    + bestW(4) * scoreRUSTest;
+blendTest = bestW(1) * scoreRFTest + bestW(2) * scoreLDATest + bestW(3) * postSVMTest;
 [~, testIdx] = max(blendTest, [], 2);
 predTest = categorical(classNames(testIdx));
 
@@ -265,13 +223,6 @@ function tbl = addEngineeredFeatures(tbl)
     tbl.zero_approved_1st  = double(c1_app == 0);
     tbl.zero_approved_2nd  = double(c2_app == 0);
     tbl.zero_enrolled_2nd  = double(c2_enr == 0);
-
-    % NEW (exp_grade_admission_feat): how college performance compares to
-    % the grade the student was admitted with - a positive value means
-    % they're outperforming their admission grade, negative means they're
-    % underperforming it. Different signal from grade_diff (which only
-    % compares sem1 vs sem2 to each other, not to admission).
-    tbl.grade_admission_diff = tbl.avg_grade - tbl.admission_grade;
 end
 
 function aligned = alignScoreColumns(scoreMat, modelClassNames, canonicalClassNames)
