@@ -21,7 +21,7 @@ stud_id,status
 3338,Dropout
 3339,Graduate
 3340,Graduate
-3341,Dropout
+3341,Graduate
 3342,Dropout
 3343,Dropout
 3344,Graduate
@@ -78,7 +78,7 @@ stud_id,status
 3395,Graduate
 3396,Dropout
 3397,Graduate
-3398,Dropout
+3398,Graduate
 3399,Graduate
 3400,Graduate
 3401,Graduate
@@ -104,7 +104,7 @@ stud_id,status
 3421,Graduate
 3422,Graduate
 3423,Dropout
-3424,Dropout
+3424,Graduate
 3425,Graduate
 3426,Graduate
 3427,Graduate
@@ -138,7 +138,7 @@ stud_id,status
 3455,Graduate
 3456,Enrolled
 3457,Enrolled
-3458,Enrolled
+3458,Graduate
 3459,Dropout
 3460,Graduate
 3461,Graduate
@@ -157,7 +157,7 @@ stud_id,status
 3474,Dropout
 3475,Dropout
 3476,Graduate
-3477,Enrolled
+3477,Dropout
 3478,Graduate
 3479,Graduate
 3480,Dropout
@@ -187,7 +187,7 @@ stud_id,status
 3504,Dropout
 3505,Graduate
 3506,Graduate
-3507,Dropout
+3507,Enrolled
 3508,Enrolled
 3509,Graduate
 3510,Dropout
@@ -245,11 +245,11 @@ stud_id,status
 3562,Graduate
 3563,Graduate
 3564,Graduate
-3565,Graduate
+3565,Dropout
 3566,Dropout
 3567,Graduate
 3568,Graduate
-3569,Dropout
+3569,Graduate
 3570,Graduate
 3571,Graduate
 3572,Dropout
@@ -334,7 +334,7 @@ stud_id,status
 3651,Graduate
 3652,Graduate
 3653,Graduate
-3654,Dropout
+3654,Enrolled
 3655,Enrolled
 3656,Enrolled
 3657,Graduate
@@ -371,7 +371,7 @@ stud_id,status
 3688,Graduate
 3689,Graduate
 3690,Dropout
-3691,Dropout
+3691,Enrolled
 3692,Graduate
 3693,Enrolled
 3694,Graduate
@@ -461,7 +461,7 @@ stud_id,status
 3778,Graduate
 3779,Graduate
 3780,Dropout
-3781,Enrolled
+3781,Dropout
 3782,Dropout
 3783,Graduate
 3784,Enrolled
@@ -561,7 +561,7 @@ stud_id,status
 3878,Graduate
 3879,Enrolled
 3880,Dropout
-3881,Graduate
+3881,Enrolled
 3882,Graduate
 3883,Dropout
 3884,Dropout
@@ -577,7 +577,7 @@ stud_id,status
 3894,Dropout
 3895,Graduate
 3896,Graduate
-3897,Graduate
+3897,Enrolled
 3898,Dropout
 3899,Dropout
 3900,Dropout
@@ -588,7 +588,7 @@ stud_id,status
 3905,Dropout
 3906,Graduate
 3907,Graduate
-3908,Graduate
+3908,Enrolled
 3909,Graduate
 3910,Graduate
 3911,Graduate
@@ -728,8 +728,8 @@ stud_id,status
 4045,Dropout
 4046,Graduate
 4047,Dropout
-4048,Enrolled
-4049,Enrolled
+4048,Dropout
+4049,Graduate
 4050,Dropout
 4051,Dropout
 4052,Dropout
@@ -743,7 +743,7 @@ stud_id,status
 4060,Graduate
 4061,Graduate
 4062,Dropout
-4063,Graduate
+4063,Dropout
 4064,Graduate
 4065,Graduate
 4066,Dropout
@@ -790,7 +790,7 @@ stud_id,status
 4107,Graduate
 4108,Graduate
 4109,Graduate
-4110,Dropout
+4110,Enrolled
 4111,Enrolled
 4112,Enrolled
 4113,Enrolled
@@ -837,7 +837,7 @@ stud_id,status
 4154,Graduate
 4155,Graduate
 4156,Graduate
-4157,Dropout
+4157,Enrolled
 4158,Enrolled
 4159,Dropout
 4160,Graduate
@@ -866,7 +866,7 @@ stud_id,status
 4183,Dropout
 4184,Graduate
 4185,Graduate
-4186,Graduate
+4186,Enrolled
 4187,Enrolled
 4188,Dropout
 4189,Graduate
@@ -892,7 +892,7 @@ stud_id,status
 4209,Dropout
 4210,Graduate
 4211,Graduate
-4212,Enrolled
+4212,Graduate
 4213,Enrolled
 4214,Graduate
 4215,Graduate
@@ -925,7 +925,7 @@ stud_id,status
 4242,Graduate
 4243,Graduate
 4244,Dropout
-4245,Enrolled
+4245,Graduate
 4246,Dropout
 4247,Graduate
 4248,Dropout
@@ -990,7 +990,7 @@ stud_id,status
 4307,Enrolled
 4308,Dropout
 4309,Dropout
-4310,Dropout
+4310,Graduate
 4311,Graduate
 4312,Graduate
 4313,Dropout
@@ -1037,7 +1037,7 @@ stud_id,status
 4354,Graduate
 4355,Dropout
 4356,Graduate
-4357,Enrolled
+4357,Dropout
 4358,Graduate
 4359,Graduate
 4360,Graduate
@@ -1076,7 +1076,7 @@ stud_id,status
 4393,Graduate
 4394,Enrolled
 4395,Graduate
-4396,Dropout
+4396,Enrolled
 4397,Dropout
 4398,Graduate
 4399,Graduate
