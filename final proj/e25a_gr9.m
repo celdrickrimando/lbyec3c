@@ -1,34 +1,11 @@
 close all; clear; clc
 
 %% ================= Import Data =================
-% exp_5way_svm_mlp: single isolated change from the CONFIRMED 0.80198
-% best (RF + LDA + SVM + RUS, 10-fold OOF, nTrees=300, original 14-
-% feature set). This experiment ADDS a neural-network classifier
-% (fitcnet, MLP) as a 5TH blend member alongside that confirmed base -
-% deliberately NOT stacked onto the still-unconfirmed GB branch from
-% exp_5way_svm_gb (that branch only has OOF signal, 0.7881 vs the
-% 4-way's 0.7848 - not a real Kaggle confirmation, and this session's
-% OOF proxy has predicted the wrong real-Kaggle direction on 2 of the
-% last 3 changes tested this way). Keeping this isolated to ONE new
-% variable (MLP) against the CONFIRMED base follows the same discipline
-% as every other experiment in this session.
-%
-% Why MLP specifically: every model in the confirmed blend (RF, LDA,
-% SVM, RUS) is either tree-based, linear, or margin-based. A fully-
-% connected neural network has a genuinely different bias/variance
-% profile - the same "real mechanism difference, not just another
-% hyperparameter tweak" bar that made GB worth testing.
-%
-% CAVEAT - IMPORTANT, read before running: unlike the other experiments
-% in this file, the rationale below has NOT been checked against real
-% training data via a proxy pass before writing this script. There was
-% no MATLAB environment or your train.csv/test.csv available to run
-% that check, so this is an untested hypothesis, not a pre-validated
-% one. Run it, look at the disagreement check and grid-search numbers
-% below BEFORE trusting this direction, let alone submitting to Kaggle.
-%
+% Final model: 5-way weighted blend (RF + LDA + SVM + RUSBoost + MLP)
+% Best confirmed Kaggle score: 0.80831
 % Requires Statistics and Machine Learning Toolbox R2021a+ (fitcnet).
-rng(42); % unchanged from confirmed-best seed
+rng(42);
+
 train_tbl = readtable('train.csv');
 test_tbl  = readtable('test.csv');
 
@@ -47,7 +24,7 @@ nClasses   = numel(classNames);
 train_tbl = addEngineeredFeatures(train_tbl);
 test_tbl  = addEngineeredFeatures(test_tbl);
 
-%% ================= Representation 1: native categorical (for RF/RUS) =================
+%% ================= Representation 1: native categorical (RF, RUSBoost) =================
 varNames = train_tbl.Properties.VariableNames;
 combined_tbl = [train_tbl; test_tbl];
 n_train = height(train_tbl);
@@ -61,7 +38,7 @@ end
 train_tbl_native = combined_tbl(1:n_train, :);
 test_tbl_native  = combined_tbl(n_train+1:end, :);
 
-%% ================= Representation 2: one-hot + standardized numeric (for LDA/SVM/MLP) =================
+%% ================= Representation 2: one-hot + standardized (LDA, SVM, MLP) =================
 catCols = varNames(~varfun(@isnumeric, combined_tbl, 'OutputFormat', 'uniform'));
 numCols = varNames(varfun(@isnumeric, combined_tbl, 'OutputFormat', 'uniform'));
 
@@ -86,8 +63,7 @@ fprintf('Native-categorical table: %d columns. One-hot/standardized matrix: %d c
 
 %% ================= Model templates =================
 treeTemplate = templateTree('MinLeafSize', 2, 'MaxNumSplits', 200, ...
-    'PredictorSelection', 'interaction-curvature', ...
-    'Surrogate', 'on');
+    'PredictorSelection', 'interaction-curvature', 'Surrogate', 'on');
 nTrees = 300;
 
 svmTemplate = templateSVM('KernelFunction', 'linear', 'BoxConstraint', 0.3, 'Standardize', false);
@@ -96,14 +72,6 @@ boostTreeTemplate = templateTree('MaxNumSplits', 20, ...
     'PredictorSelection', 'interaction-curvature', 'Surrogate', 'on');
 nBoostCycles = 200;
 
-% exp_5way_svm_mlp: MLP hyperparameters - a reasonable first pass, NOT
-% tuned. Two modest hidden layers plus L2 regularization (Lambda) to
-% keep it from just memorizing the training fold given the one-hot
-% column count printed above. 'Standardize', false because the numeric
-% block is already manually standardized above (same reasoning as the
-% SVM template's identical choice). If the disagreement check below
-% looks promising, this is the first thing worth tuning before a real
-% Kaggle submission.
 mlpLayerSizes = [40 20];
 mlpLambda = 1e-3;
 
@@ -119,50 +87,34 @@ for k = 1:cv.NumTestSets
     trIdx = training(cv, k);
     teIdx = test(cv, k);
 
-    % --- RF on native-categorical fold ---
     rfFold = fitcensemble(train_tbl_native(trIdx, :), y_train(trIdx), ...
         'Method', 'Bag', 'NumLearningCycles', nTrees, 'Learners', treeTemplate);
     [~, scoreRF] = predict(rfFold, train_tbl_native(teIdx, :));
     oofRF(teIdx, :) = alignScoreColumns(scoreRF, rfFold.ClassNames, classNames);
 
-    % --- LDA on one-hot fold ---
     ldaFold = fitcdiscr(X_flat_train(trIdx, :), y_train(trIdx), 'DiscrimType', 'pseudoLinear');
     [~, scoreLDA] = predict(ldaFold, X_flat_train(teIdx, :));
     oofLDA(teIdx, :) = alignScoreColumns(scoreLDA, ldaFold.ClassNames, classNames);
 
-    % --- ECOC-SVM on one-hot fold ---
     svmFold = fitcecoc(X_flat_train(trIdx, :), y_train(trIdx), ...
         'Learners', svmTemplate, 'Coding', 'onevsone', 'FitPosterior', true);
     [~, ~, ~, postSVM] = predict(svmFold, X_flat_train(teIdx, :));
     oofSVM(teIdx, :) = alignScoreColumns(postSVM, svmFold.ClassNames, classNames);
 
-    % --- RUSBoost on native-categorical fold ---
     rusFold = fitcensemble(train_tbl_native(trIdx, :), y_train(trIdx), ...
         'Method', 'RUSBoost', 'NumLearningCycles', nBoostCycles, 'Learners', boostTreeTemplate);
     [~, scoreRUS] = predict(rusFold, train_tbl_native(teIdx, :));
     oofRUS(teIdx, :) = alignScoreColumns(scoreRUS, rusFold.ClassNames, classNames);
 
-    % --- MLP on one-hot fold - NEW 5th member, isolated test ---
-    % fitcnet returns calibrated posterior probabilities directly from
-    % predict() - no softmax workaround needed here, unlike the GB-ECOC
-    % branch in exp_5way_svm_gb (FitPosterior there is SVM-only).
     mlpFold = fitcnet(X_flat_train(trIdx, :), y_train(trIdx), ...
-        'LayerSizes', mlpLayerSizes, 'Lambda', mlpLambda, ...
-        'Standardize', false);
+        'LayerSizes', mlpLayerSizes, 'Lambda', mlpLambda, 'Standardize', false);
     [~, scoreMLP] = predict(mlpFold, X_flat_train(teIdx, :));
     oofMLP(teIdx, :) = alignScoreColumns(scoreMLP, mlpFold.ClassNames, classNames);
 
     fprintf('Fold %d done.\n', k);
 end
 
-%% ================= Isolated MLP-vs-SVM disagreement check =================
-% Same style of check that was run before folding GB into the full grid
-% search in exp_5way_svm_gb (288/3318 disagreeing rows, split 162/126) -
-% a cheap sanity check on whether MLP is contributing something SVM
-% alone doesn't, before trusting the grid search below. If this split is
-% heavily lopsided one direction, MLP is probably just a weaker SVM, not
-% a complementary one, and the grid search is likely to hand it ~0
-% weight the way RUSBoost got ~0 weight in the GB experiment.
+%% ================= SVM vs MLP disagreement check =================
 predSVM = categorical(classNames(argmaxCols(oofSVM)));
 predMLP = categorical(classNames(argmaxCols(oofMLP)));
 disagreeIdx = predSVM ~= predMLP;
@@ -300,9 +252,7 @@ function tbl = addEngineeredFeatures(tbl)
 end
 
 function aligned = alignScoreColumns(scoreMat, modelClassNames, canonicalClassNames)
-%ALIGNSCORECOLUMNS Reorders a model's posterior/score columns so column i
-% always corresponds to canonicalClassNames{i}, regardless of the order
-% the model itself assigned to its classes.
+%ALIGNSCORECOLUMNS Reorders model score columns to a canonical class order.
     nCanon = numel(canonicalClassNames);
     aligned = zeros(size(scoreMat, 1), nCanon);
     modelClassNames = cellstr(modelClassNames);
